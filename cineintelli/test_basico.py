@@ -41,8 +41,45 @@ def test_crear_pelicula() -> bool:
     assert "Acción" in p.generos
     assert p.anio == 2010
     assert 0 <= p.puntuacion <= 10
-    assert p.es_popular is False  # requiere contexto del catálogo
+    # es_popular ahora es un método que requiere umbral opcional
+    assert p.es_popular() is False  # sin umbral retorna False
+    assert p.es_popular(umbral_popularidad=50.0) is True  # 95.5 >= 50.0
+    assert p.es_popular(umbral_popularidad=100.0) is False  # 95.5 < 100.0
     print("[PASS] Pelicula creada correctamente.\n")
+    return True
+
+
+def test_es_pelicula_popular() -> bool:
+    """Verifica que el método es_pelicula_popular del Recomendador funciona correctamente."""
+    print("[TEST] Verificando es_pelicula_popular...")
+    from models import Pelicula, Perfil, Recomendador
+
+    catalogo = [
+        Pelicula(id=1, titulo="P1", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=10.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=2, titulo="P2", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=20.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=3, titulo="P3", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=30.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=4, titulo="P4", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=40.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=5, titulo="P5", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=50.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=6, titulo="P6", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=60.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=7, titulo="P7", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=70.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=8, titulo="P8", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=80.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=9, titulo="P9", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=90.0, idioma="en", descripcion="d", votos=100),
+        Pelicula(id=10, titulo="P10", generos=["Drama"], anio=2020, puntuacion=7.0, popularidad=100.0, idioma="en", descripcion="d", votos=100),
+    ]
+    perfil = Perfil(nombre_usuario="test")
+    recomendador = Recomendador(catalogo, perfil)
+
+    # Percentil 75 de [10,20,30,40,50,60,70,80,90,100] = 80 (índice 7)
+    umbral = recomendador._evaluar_umbral_popularidad()
+    assert umbral == 80.0, f"Umbral esperado 80.0, obtenido {umbral}"
+
+    # P1-P7 no son populares (< 80), P8-P10 sí son populares (>= 80)
+    assert recomendador.es_pelicula_popular(catalogo[0]) is False  # P1: 10 < 80
+    assert recomendador.es_pelicula_popular(catalogo[6]) is False  # P7: 70 < 80
+    assert recomendador.es_pelicula_popular(catalogo[7]) is True   # P8: 80 >= 80
+    assert recomendador.es_pelicula_popular(catalogo[9]) is True   # P10: 100 >= 80
+
+    print("[PASS] es_pelicula_popular funciona correctamente.\n")
     return True
 
 
@@ -220,6 +257,12 @@ def run_all() -> None:
         resultados.append(("Pelicula", test_crear_pelicula()))
     except Exception as exc:
         resultados.append(("Pelicula", False))
+        traceback.print_exc()
+
+    try:
+        resultados.append(("es_pelicula_popular", test_es_pelicula_popular()))
+    except Exception as exc:
+        resultados.append(("es_pelicula_popular", False))
         traceback.print_exc()
 
     try:

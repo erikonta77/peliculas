@@ -149,17 +149,24 @@ class Pelicula:
             votos=int(data["votos"]),
         )
 
-    @property
-    def es_popular(self) -> bool:
+    def es_popular(self, umbral_popularidad: Optional[float] = None) -> bool:
         """
         Indica si la película es popular según el percentil 75 del catálogo.
 
-        Nota:
-            El valor real se resuelve externamente mediante
-            :meth:`Recomendador.evaluar_popularidad` ya que requiere
-            contexto del catálogo completo.
+        Args:
+            umbral_popularidad: Valor de popularidad correspondiente al
+                percentil 75 del catálogo. Si es None, retorna False.
+
+        Returns:
+            True si la popularidad de la película >= umbral, False en caso contrario.
+
+        Note:
+            El umbral se calcula en :meth:`Recomendador._evaluar_umbral_popularidad`.
+            Ejemplo: ``pelicula.es_popular(recomendador._evaluar_umbral_popularidad())``
         """
-        return False
+        if umbral_popularidad is None:
+            return False
+        return self._popularidad >= umbral_popularidad
 
 
 class Perfil:
@@ -360,11 +367,24 @@ class Recomendador:
         if not self._catalogo:
             return 0.0
         if self._umbral_popularidad is None:
-            popularidades = sorted(p.puntuacion for p in self._catalogo)
+            popularidades = sorted(p.popularidad for p in self._catalogo)
             idx = int(len(popularidades) * 0.75)
             idx = min(idx, len(popularidades) - 1)
             self._umbral_popularidad = popularidades[idx]
         return self._umbral_popularidad
+
+    def es_pelicula_popular(self, pelicula: Pelicula) -> bool:
+        """
+        Evalúa si una película es popular según el percentil 75 del catálogo.
+
+        Args:
+            pelicula: Película a evaluar.
+
+        Returns:
+            True si la popularidad de la película >= percentil 75, False en caso contrario.
+        """
+        umbral = self._evaluar_umbral_popularidad()
+        return pelicula.es_popular(umbral_popularidad=umbral)
 
     def filtrar_por_criterios(self) -> List[Pelicula]:
         """
