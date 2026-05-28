@@ -10,6 +10,8 @@ venv/
 # Datos y outputs locales
 data/*.csv
 output/*.png
+output/*.keras
+output/*.pkl
 profiles/*.json
 
 # Logs
