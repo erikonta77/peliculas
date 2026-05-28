@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+.venv/
+
+# Datos y outputs locales
+data/*.csv
+output/*.png
+profiles/*.json
+
+# Logs
+*.log
