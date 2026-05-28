@@ -185,7 +185,7 @@ def _vectorizar_catalogo(
 
 def construir_modelo_recomendacion(
     catalogo: List[Pelicula],
-) -> Tuple[Any, np.ndarray, Dict[str, Any]]:
+) -> Tuple[Any, np.ndarray, Dict[str, Any], Optional[Any]]:
     """
     Entrena o carga un Autoencoder para generar embeddings de películas.
 
@@ -197,7 +197,9 @@ def construir_modelo_recomendacion(
         catalogo: Lista completa de películas.
 
     Returns:
-        Tupla (modelo_encoder, matriz_original, preprocesadores).
+        Tupla (modelo_encoder, matriz_original, preprocesadores, historial).
+        El historial es el objeto History de Keras si se entrenó,
+        o None si se cargó un modelo existente.
     """
     import tensorflow as tf
     from tensorflow.keras.layers import Dense, Input
@@ -249,6 +251,7 @@ def construir_modelo_recomendacion(
         with open(RUTA_PREPROCESADORES, "rb") as f:
             preprocesadores = pickle.load(f)
         X = _vectorizar_catalogo(catalogo, preprocesadores)
+        history = None
     else:
         print("[analytics] Entrenando Autoencoder...")
         n_features = X.shape[1]
@@ -265,7 +268,7 @@ def construir_modelo_recomendacion(
         autoencoder = Model(inputs=input_layer, outputs=decoded)
         autoencoder.compile(optimizer="adam", loss="mse")
 
-        autoencoder.fit(
+        history = autoencoder.fit(
             X,
             X,
             epochs=50,
@@ -284,7 +287,7 @@ def construir_modelo_recomendacion(
         outputs=autoencoder.get_layer("encoder_output").output,
     )
 
-    return encoder, X, preprocesadores
+    return encoder, X, preprocesadores, history
 
 
 # ---------------------------------------------------------------------------
