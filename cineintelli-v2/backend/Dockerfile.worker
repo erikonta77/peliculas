@@ -1,0 +1,27 @@
+# =============================================================================
+# CINEINTELLI WORKER - Celery Worker Dockerfile
+# =============================================================================
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    C_FORCE_ROOT=true
+
+# Instalar dependencias
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Instalar dependencias Python
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código
+COPY app/ ./app/
+
+# Comando por defecto (sobrescribir en docker-compose)
+CMD ["celery", "-A", "app.core.celery", "worker", "--loglevel=info", "--concurrency=4"]
