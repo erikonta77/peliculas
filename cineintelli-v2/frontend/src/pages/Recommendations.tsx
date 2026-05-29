@@ -10,6 +10,8 @@ interface Movie {
   year?: number
   rating?: number
   genres: string[]
+  reason?: string
+  type?: string
 }
 
 export default function Recommendations() {
@@ -25,7 +27,8 @@ export default function Recommendations() {
     setLoading(true)
     try {
       const response = await api.get('/recommendations/personalized?count=12')
-      setRecommendations(response.data.recommendations)
+      const data = response.data
+      setRecommendations(Array.isArray(data) ? data : data.recommendations || [])
     } catch (error) {
       console.error('Error fetching recommendations:', error)
     } finally {

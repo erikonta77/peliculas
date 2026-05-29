@@ -1,7 +1,9 @@
 """
 Users endpoints (SQLite sync version)
 """
+from typing import Optional, List
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.auth_sqlite import get_current_active_user
@@ -9,6 +11,14 @@ from app.core.database_sqlite import get_db
 from app.models_sqlite import User, UserProfile
 
 router = APIRouter()
+
+class ProfileUpdate(BaseModel):
+    favorite_genres: Optional[List[str]] = None
+    year_min: Optional[int] = None
+    year_max: Optional[int] = None
+    min_rating: Optional[float] = None
+    preferred_language: Optional[str] = None
+    recommendations_count: Optional[int] = None
 
 @router.get("/me")
 def get_current_user_info(current_user: User = Depends(get_current_active_user)):
@@ -37,12 +47,7 @@ def get_user_profile(current_user: User = Depends(get_current_active_user), db: 
 
 @router.put("/me/profile")
 def update_user_profile(
-    favorite_genres: list = None,
-    year_min: int = None,
-    year_max: int = None,
-    min_rating: float = None,
-    preferred_language: str = None,
-    recommendations_count: int = None,
+    profile_data: ProfileUpdate,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -51,18 +56,18 @@ def update_user_profile(
         profile = UserProfile(user_id=current_user.id)
         db.add(profile)
 
-    if favorite_genres is not None:
-        profile.favorite_genres = favorite_genres
-    if year_min is not None:
-        profile.year_min = year_min
-    if year_max is not None:
-        profile.year_max = year_max
-    if min_rating is not None:
-        profile.min_rating = min_rating
-    if preferred_language is not None:
-        profile.preferred_language = preferred_language
-    if recommendations_count is not None:
-        profile.recommendations_count = recommendations_count
+    if profile_data.favorite_genres is not None:
+        profile.favorite_genres = profile_data.favorite_genres
+    if profile_data.year_min is not None:
+        profile.year_min = profile_data.year_min
+    if profile_data.year_max is not None:
+        profile.year_max = profile_data.year_max
+    if profile_data.min_rating is not None:
+        profile.min_rating = profile_data.min_rating
+    if profile_data.preferred_language is not None:
+        profile.preferred_language = profile_data.preferred_language
+    if profile_data.recommendations_count is not None:
+        profile.recommendations_count = profile_data.recommendations_count
 
     db.commit()
     return {"message": "Perfil actualizado", "profile": {

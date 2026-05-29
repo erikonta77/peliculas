@@ -26,6 +26,22 @@ else:
 router = APIRouter()
 
 
+def normalize_genre(g: str) -> str:
+    if not g:
+        return ""
+    g = g.lower()
+    replacements = {
+        'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u',
+        'ñ': 'n',
+        '\ufffd': 'o',
+    }
+    for k, v in replacements.items():
+        g = g.replace(k, v)
+    g = g.replace("ficcin", "ficcion")
+    g = g.replace("accin", "accion")
+    return "".join(c for c in g if c.isalnum())
+
+
 @router.get("/personalized")
 async def get_personalized_recommendations(
     count: int = Query(10, ge=1, le=50),
@@ -62,32 +78,189 @@ async def get_personalized_recommendations(
     else:
         all_movies = db.query(Movie).filter(Movie.is_active == True).all()
 
-    # 3. Motor de Recomendación (Algoritmo Sync unificado)
-    scored = []
-    for m in all_movies:
-        score = 0.0
-        if m.rating:
-            score += (m.rating / 10.0) * 0.4
-        if m.popularity:
-            score += min(m.popularity / 100.0, 1.0) * 0.3
-        if m.genres and profile.favorite_genres:
-            overlap = set(m.genres) & set(profile.favorite_genres)
-            if overlap:
-                score += len(overlap) / len(set(m.genres) | set(profile.favorite_genres)) * 0.3
-        scored.append((m, score))
+    # 3. Motor de Recomendación
+    if isinstance(db, AsyncSession):
+        scored = []
+        for m in all_movies:
+            score = 0.0
+            if m.rating:
+                score += (m.rating / 10.0) * 0.4
+            if m.popularity:
+                score += min(m.popularity / 100.0, 1.0) * 0.3
+            if m.genres and profile.favorite_genres:
+                overlap = set(m.genres) & set(profile.favorite_genres)
+                if overlap:
+                    score += len(overlap) / len(set(m.genres) | set(profile.favorite_genres)) * 0.3
+            scored.append((m, score))
 
-    scored.sort(key=lambda x: x[1], reverse=True)
-    recommendations = [m[0] for m in scored[:count]]
+        scored.sort(key=lambda x: x[1], reverse=True)
+        recommendations = [m[0] for m in scored[:count]]
 
-    return {
-        "recommendations": [m.to_dict() for m in recommendations],
-        "count": len(recommendations),
-        "profile_used": {
-            "genres": profile.favorite_genres or [],
-            "year_range": [profile.year_min, profile.year_max],
-            "min_rating": profile.min_rating
+        return {
+            "recommendations": [m.to_dict() for m in recommendations],
+            "count": len(recommendations),
+            "profile_used": {
+                "genres": profile.favorite_genres or [],
+                "year_range": [profile.year_min, profile.year_max],
+                "min_rating": profile.min_rating
+            }
         }
-    }
+    else:
+        # SQLite - Nueva exploración inteligente y experiencia personalizada
+        # A. Evitar repetición de contenido (excluir visto o rechazado)
+        watched_movie_ids = set()
+        rejected_movie_ids = set()
+        if profile.watch_history:
+            for entry in profile.watch_history:
+                if isinstance(entry, dict):
+                    m_id = entry.get("movie_id")
+                    if m_id:
+                        if entry.get("accepted", True):
+                            watched_movie_ids.add(str(m_id))
+                        else:
+                            rejected_movie_ids.add(str(m_id))
+                elif isinstance(entry, str):
+                    watched_movie_ids.add(entry)
+
+        eligible_movies = []
+        for m in all_movies:
+            m_id_str = str(m.id)
+            if m_id_str in watched_movie_ids or m_id_str in rejected_movie_ids:
+                continue
+            eligible_movies.append(m)
+
+        # Determinar popularidad media (percentiles 15 a 75)
+        pops = sorted([x.popularity for x in all_movies if x.popularity is not None])
+        if len(pops) >= 5:
+            low_idx = int(len(pops) * 0.15)
+            high_idx = int(len(pops) * 0.75)
+            low_val = pops[low_idx]
+            high_val = pops[high_idx]
+        else:
+            low_val = -1.0
+            high_val = 9999.0
+
+        favorite_genres = profile.favorite_genres or []
+
+        scored_movies = []
+        for m in eligible_movies:
+            score = 0.0
+            
+            # 1. Géneros: 35%
+            overlap_genres = []
+            has_favorite_genre = False
+            if m.genres and favorite_genres:
+                movie_genres_norm = {normalize_genre(g) for g in m.genres}
+                fav_genres_norm = {normalize_genre(g) for g in favorite_genres}
+                overlap = movie_genres_norm & fav_genres_norm
+                if overlap:
+                    for fg in favorite_genres:
+                        if normalize_genre(fg) in overlap:
+                            overlap_genres.append(fg)
+                    union_len = len(movie_genres_norm | fav_genres_norm)
+                    if union_len > 0:
+                        score += (len(overlap) / union_len) * 0.35
+                has_favorite_genre = bool(overlap)
+            
+            # 2. Rating: 25%
+            if m.rating is not None:
+                score += (m.rating / 10.0) * 0.25
+
+            # 3. Popularidad: 20%
+            if m.popularity is not None:
+                score += min(m.popularity / 100.0, 1.0) * 0.20
+
+            # 4. Exploración bonus: +20% (0.20) si no es género favorito
+            if favorite_genres and not has_favorite_genre:
+                score += 0.20
+
+            scored_movies.append({
+                "movie": m,
+                "score": score,
+                "has_favorite_genre": has_favorite_genre,
+                "overlap_genres": overlap_genres
+            })
+
+        # Clasificar en afines vs exploración
+        lista_exploracion = []
+        lista_afines = []
+
+        for item in scored_movies:
+            m = item["movie"]
+            has_fav = item["has_favorite_genre"]
+            
+            is_exp = False
+            if favorite_genres:
+                if not has_fav:
+                    if m.rating is not None and m.rating > 6.5:
+                        if low_val <= (m.popularity or 0.0) <= high_val:
+                            is_exp = True
+
+            item["is_exploration"] = is_exp
+            if is_exp:
+                lista_exploracion.append(item)
+            else:
+                lista_afines.append(item)
+
+        # Ordenar por puntuación descendente
+        lista_exploracion.sort(key=lambda x: x["score"], reverse=True)
+        lista_afines.sort(key=lambda x: x["score"], reverse=True)
+
+        # Mezclar: 70% afinidad, 30% exploración
+        target_afines = int(count * 0.7)
+        target_exploration = count - target_afines
+
+        selected_afines = lista_afines[:target_afines]
+        selected_exp = lista_exploracion[:target_exploration]
+
+        # Completar si alguna lista se queda corta
+        if len(selected_afines) < target_afines:
+            extra_slots = target_afines - len(selected_afines)
+            selected_exp += lista_exploracion[target_exploration : target_exploration + extra_slots]
+
+        if len(selected_exp) < target_exploration:
+            extra_slots = target_exploration - len(selected_exp)
+            selected_afines += lista_afines[target_afines : target_afines + extra_slots]
+
+        # Ajustar longitud final al count
+        selected_afines = selected_afines[:target_afines + max(0, target_exploration - len(selected_exp))]
+        selected_exp = selected_exp[:target_exploration + max(0, target_afines - len(selected_afines))]
+
+        # Intercalado (A, A, E, A, A, E...) para mejor UX
+        final_items = []
+        i_af = 0
+        i_ex = 0
+        while i_af < len(selected_afines) or i_ex < len(selected_exp):
+            for _ in range(2):
+                if i_af < len(selected_afines):
+                    final_items.append(selected_afines[i_af])
+                    i_af += 1
+            if i_ex < len(selected_exp):
+                final_items.append(selected_exp[i_ex])
+                i_ex += 1
+
+        # Formatear respuesta con explicabilidad
+        results = []
+        for item in final_items:
+            m = item["movie"]
+            is_exp = item["is_exploration"]
+            overlap = item["overlap_genres"]
+
+            if is_exp:
+                reason = "Recomendación para descubrir algo diferente"
+            else:
+                if overlap:
+                    genres_str = " y ".join(overlap[:2]) if len(overlap) > 1 else overlap[0]
+                    reason = f"Porque te gusta {genres_str} y esta película tiene alta puntuación"
+                else:
+                    reason = "Recomendada por su popularidad y valoración general"
+
+            m_dict = m.to_dict()
+            m_dict["reason"] = reason
+            m_dict["type"] = "exploration" if is_exp else "affinity"
+            results.append(m_dict)
+
+        return results[:count]
 
 
 @router.post("/feedback")
@@ -259,23 +432,68 @@ async def cine_roulette(
             select(Movie).where(Movie.is_active == True, Movie.rating >= 6.0)
         )
         all_movies = result.scalars().all()
-    else:
-        all_movies = db.query(Movie).filter(Movie.is_active == True, Movie.rating >= 6.0).all()
+        
+        if profile and profile.favorite_genres:
+            # Excluir géneros favoritos del perfil para dar una sorpresa real
+            candidates = [m for m in all_movies if not (m.genres and any(g in profile.favorite_genres for g in m.genres))]
+            if candidates:
+                return {
+                    "roulette": random.choice(candidates).to_dict(),
+                    "message": "¡Sorpresa!"
+                }
 
-    if profile and profile.favorite_genres:
-        # Excluir géneros favoritos del perfil para dar una sorpresa real
-        candidates = [m for m in all_movies if not (m.genres and any(g in profile.favorite_genres for g in m.genres))]
+        if all_movies:
+            return {
+                "roulette": random.choice(all_movies).to_dict(),
+                "message": "¡Sorpresa!"
+            }
+    else:
+        # SQLite - CineRoulette mejorado (Rating >= 6.5, excluir vistos/rechazados, excluir favoritos)
+        watched_movie_ids = set()
+        rejected_movie_ids = set()
+        if profile and profile.watch_history:
+            for entry in profile.watch_history:
+                if isinstance(entry, dict):
+                    m_id = entry.get("movie_id")
+                    if m_id:
+                        if entry.get("accepted", True):
+                            watched_movie_ids.add(str(m_id))
+                        else:
+                            rejected_movie_ids.add(str(m_id))
+                elif isinstance(entry, str):
+                    watched_movie_ids.add(entry)
+
+        all_movies = db.query(Movie).filter(Movie.is_active == True, Movie.rating >= 6.5).all()
+
+        favorite_genres = profile.favorite_genres if profile else []
+
+        candidates = []
+        for m in all_movies:
+            m_id_str = str(m.id)
+            if m_id_str in watched_movie_ids or m_id_str in rejected_movie_ids:
+                continue
+
+            # Excluir favoritos
+            if favorite_genres and m.genres:
+                movie_genres_norm = {normalize_genre(g) for g in m.genres}
+                fav_genres_norm = {normalize_genre(g) for g in favorite_genres}
+                if movie_genres_norm & fav_genres_norm:
+                    continue
+            candidates.append(m)
+
+        # Fallback si no quedan películas sin sus géneros favoritos: incluir todas las no vistas
+        if not candidates:
+            candidates = [
+                m for m in all_movies
+                if str(m.id) not in watched_movie_ids and str(m.id) not in rejected_movie_ids
+            ]
+
         if candidates:
             return {
                 "roulette": random.choice(candidates).to_dict(),
                 "message": "¡Sorpresa!"
             }
 
-    if all_movies:
-        return {
-            "roulette": random.choice(all_movies).to_dict(),
-            "message": "¡Sorpresa!"
-        }
     return {
         "roulette": None,
         "message": "No hay películas disponibles"
