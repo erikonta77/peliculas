@@ -26,7 +26,7 @@ export default function Recommendations() {
   const fetchRecommendations = async () => {
     setLoading(true)
     try {
-      const response = await api.get('/recommendations/personalized?count=12')
+      const response = await api.get('/recommendations/personalized?count=24')
       const data = response.data
       setRecommendations(Array.isArray(data) ? data : data.recommendations || [])
     } catch (error) {

@@ -86,18 +86,46 @@ class Movie(Base):
         return None
 
     def to_dict(self):
+        import re
+        
+        cleaned_title = self.title
+        if cleaned_title:
+            cleaned_title = re.sub(r"\s+\d+$", "", cleaned_title).strip()
+            
+        orig_title = self.original_title
+        if orig_title:
+            orig_title = re.sub(r"\s+\d+$", "", orig_title).strip()
+        else:
+            orig_title = cleaned_title
+            
+        title_final = orig_title if orig_title else cleaned_title
+        
+        display_title = cleaned_title
+        if orig_title and orig_title != cleaned_title:
+            display_title = f"{cleaned_title} ({orig_title})"
+            
+        rating_val = self.rating
+        if rating_val is not None:
+            if rating_val > 9.0:
+                rating_val = 8.5 + ((rating_val - 9.0) * 0.5)
+            rating_val = min(rating_val, 9.0)
+            rating_val = round(rating_val, 1)
+            
         return {
             "id": str(self.id),
-            "title": self.title,
+            "title": title_final,
+            "display_title": display_title,
+            "original_title": orig_title,
             "overview": self.overview,
             "genres": self.genres or [],
             "year": self.year,
-            "rating": self.rating,
+            "rating": rating_val,
             "popularity": self.popularity,
             "poster_url": self.poster_url,
             "runtime": self.runtime,
             "language": self.language,
             "tagline": self.tagline,
+            "vote_count": self.vote_count,
         }
 
 

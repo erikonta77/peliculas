@@ -19,10 +19,13 @@ export default function Movies() {
   const [search, setSearch] = useState('')
   const [selectedGenre, setSelectedGenre] = useState('')
   const [year, setYear] = useState('')
+  const [total, setTotal] = useState(0)
+  const [skip, setSkip] = useState(0)
+  const limit = 24
 
   useEffect(() => {
     fetchGenres()
-    fetchMovies()
+    fetchMovies(0, true)
   }, [])
 
   const fetchGenres = async () => {
@@ -34,16 +37,27 @@ export default function Movies() {
     }
   }
 
-  const fetchMovies = async () => {
+  const fetchMovies = async (currentSkip = 0, reset = false) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (search) params.append('search', search)
       if (selectedGenre) params.append('genre', selectedGenre)
       if (year) params.append('year', year)
+      params.append('skip', currentSkip.toString())
+      params.append('limit', limit.toString())
 
       const response = await api.get(`/movies/?${params}`)
-      setMovies(response.data.results)
+      const newMovies = response.data.results || []
+      
+      if (reset) {
+        setMovies(newMovies)
+        setSkip(limit)
+      } else {
+        setMovies(prev => [...prev, ...newMovies])
+        setSkip(currentSkip + limit)
+      }
+      setTotal(response.data.total || 0)
     } catch (error) {
       console.error('Error fetching movies:', error)
     } finally {
@@ -53,7 +67,7 @@ export default function Movies() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    fetchMovies()
+    fetchMovies(0, true)
   }
 
   return (
@@ -103,14 +117,14 @@ export default function Movies() {
       </div>
 
       {/* Results */}
-      {loading ? (
+      {loading && movies.length === 0 ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
         </div>
       ) : (
         <>
           <p className="text-gray-400">
-            Mostrando {movies.length} películas
+            Mostrando {movies.length} de {total} películas
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -122,6 +136,25 @@ export default function Movies() {
           {movies.length === 0 && (
             <div className="text-center py-12 text-gray-400">
               No se encontraron películas con los filtros seleccionados.
+            </div>
+          )}
+
+          {movies.length < total && (
+            <div className="flex justify-center mt-8">
+              <button
+                onClick={() => fetchMovies(skip, false)}
+                className="btn-secondary px-8 py-3 font-semibold hover:bg-dark-700 transition-colors flex items-center gap-2"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="animate-spin inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                    Cargando...
+                  </>
+                ) : (
+                  'Cargar más películas'
+                )}
+              </button>
             </div>
           )}
         </>

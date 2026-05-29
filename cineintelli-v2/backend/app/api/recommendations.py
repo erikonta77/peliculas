@@ -76,7 +76,7 @@ async def get_personalized_recommendations(
         result = await db.execute(select(Movie).where(Movie.is_active == True))
         all_movies = result.scalars().all()
     else:
-        all_movies = db.query(Movie).filter(Movie.is_active == True).all()
+        all_movies = db.query(Movie).filter(Movie.is_active == True, Movie.vote_count >= 50).all()
 
     # 3. Motor de Recomendación
     if isinstance(db, AsyncSession):
@@ -122,12 +122,16 @@ async def get_personalized_recommendations(
                 elif isinstance(entry, str):
                     watched_movie_ids.add(entry)
 
+        seen_keys = set()
         eligible_movies = []
         for m in all_movies:
             m_id_str = str(m.id)
             if m_id_str in watched_movie_ids or m_id_str in rejected_movie_ids:
                 continue
-            eligible_movies.append(m)
+            key = m.tmdb_id or f"{m.title}_{m.year}"
+            if key not in seen_keys:
+                seen_keys.add(key)
+                eligible_movies.append(m)
 
         # Determinar popularidad media (percentiles 15 a 75)
         pops = sorted([x.popularity for x in all_movies if x.popularity is not None])
@@ -400,10 +404,21 @@ async def get_trending_recommendations(
         result = await db.execute(query.order_by(Movie.popularity.desc()).limit(limit))
         movies = result.scalars().all()
     else:
-        query = db.query(Movie).filter(Movie.is_active == True, Movie.popularity.isnot(None))
+        query = db.query(Movie).filter(
+            Movie.is_active == True,
+            Movie.vote_count >= 50
+        )
         if genre:
             query = query.filter(Movie.genres.contains(f'"{genre}"'))
-        movies = query.order_by(Movie.popularity.desc()).limit(limit).all()
+        raw_movies = query.order_by(Movie.vote_count.desc(), Movie.rating.desc()).limit(max(limit * 2, 100)).all()
+        seen = set()
+        unique_movies = []
+        for m in raw_movies:
+            key = m.tmdb_id or f"{m.title}_{m.year}"
+            if key not in seen:
+                seen.add(key)
+                unique_movies.append(m)
+        movies = unique_movies[:limit]
 
     return {
         "trending": [m.to_dict() for m in movies],
@@ -467,11 +482,17 @@ async def cine_roulette(
 
         favorite_genres = profile.favorite_genres if profile else []
 
+        seen_keys = set()
         candidates = []
         for m in all_movies:
             m_id_str = str(m.id)
             if m_id_str in watched_movie_ids or m_id_str in rejected_movie_ids:
                 continue
+
+            key = m.tmdb_id or f"{m.title}_{m.year}"
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
 
             # Excluir favoritos
             if favorite_genres and m.genres:

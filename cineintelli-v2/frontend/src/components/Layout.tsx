@@ -1,11 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { Film, Home, Sparkles, User, LogOut } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
+import Onboarding from './Onboarding'
 
 export default function Layout() {
   const location = useLocation()
   const { user, setAuth, logout } = useAuthStore()
+  const [onboardingCompleted, setOnboardingCompleted] = useState(() => {
+    return localStorage.getItem('onboarding_completed') === 'true'
+  })
 
   useEffect(() => {
     if (!user) {
@@ -18,6 +22,12 @@ export default function Layout() {
   }, [user, setAuth])
 
   const isActive = (path: string) => location.pathname === path
+
+  const handleLogout = () => {
+    localStorage.removeItem('onboarding_completed')
+    setOnboardingCompleted(false)
+    logout()
+  }
 
   return (
     <div className="min-h-screen bg-dark-900">
@@ -67,7 +77,7 @@ export default function Layout() {
                     <User className="w-5 h-5" />
                     <span className="hidden sm:inline">{user.email}</span>
                   </Link>
-                  <button onClick={logout} className="text-gray-400 hover:text-white">
+                  <button onClick={handleLogout} className="text-gray-400 hover:text-white">
                     <LogOut className="w-5 h-5" />
                   </button>
                 </>
@@ -83,7 +93,11 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Outlet />
+        {!onboardingCompleted ? (
+          <Onboarding onComplete={() => setOnboardingCompleted(true)} />
+        ) : (
+          <Outlet />
+        )}
       </main>
     </div>
   )

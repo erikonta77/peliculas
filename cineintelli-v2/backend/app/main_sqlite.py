@@ -102,9 +102,10 @@ from app.api.movies_sqlite import seed_demo_movies
 
 db = SessionLocal()
 try:
-    if db.query(Movie).count() == 0:
-        print("[main_sqlite] Database is empty. Seeding demo movies...")
-        seed_demo_movies(db)
-        print("[main_sqlite] Seed completed.")
+    if db.query(Movie).count() < 10:
+        print("[main_sqlite] Database is empty or has few movies (< 10). Seeding from TMDB...")
+        from app.api.movies_sqlite import sync_tmdb_movies
+        sync_tmdb_movies(10, db)
+        print("[main_sqlite] Startup seeding completed.")
 finally:
     db.close()

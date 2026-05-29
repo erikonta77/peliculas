@@ -3,6 +3,7 @@ import { Star } from 'lucide-react'
 interface Movie {
   id: string
   title: string
+  display_title?: string
   poster_url?: string
   year?: number
   rating?: number
@@ -61,8 +62,8 @@ export default function MovieCard({ movie }: MovieCardProps) {
             </div>
           )}
         </div>
-        <h3 className="font-semibold text-sm line-clamp-2 text-white group-hover:text-primary-400 transition-colors" title={movie.title}>
-          {movie.title}
+        <h3 className="font-semibold text-sm line-clamp-2 text-white group-hover:text-primary-400 transition-colors" title={movie.display_title || movie.title}>
+          {movie.display_title || movie.title}
         </h3>
         
         {movie.tagline && (
