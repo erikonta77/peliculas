@@ -9,6 +9,10 @@ interface Movie {
   genres?: string[]
   reason?: string
   type?: string
+  overview?: string
+  runtime?: number
+  language?: string
+  tagline?: string
 }
 
 interface MovieCardProps {
@@ -57,24 +61,42 @@ export default function MovieCard({ movie }: MovieCardProps) {
             </div>
           )}
         </div>
-        <h3 className="font-medium text-sm line-clamp-2" title={movie.title}>
+        <h3 className="font-semibold text-sm line-clamp-2 text-white group-hover:text-primary-400 transition-colors" title={movie.title}>
           {movie.title}
         </h3>
-        <div className="flex items-center justify-between mt-2 text-sm text-gray-400">
-          <span>{movie.year || 'N/A'}</span>
+        
+        {movie.tagline && (
+          <p className="text-xs text-primary-400/90 font-light italic mt-1 line-clamp-1">
+            "{movie.tagline}"
+          </p>
+        )}
+
+        <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+          <div className="flex gap-2">
+            <span>{movie.year || 'N/A'}</span>
+            {movie.runtime && <span>• {movie.runtime}m</span>}
+            {movie.language && <span className="uppercase">• {movie.language}</span>}
+          </div>
           {movie.rating && (
-            <div className="flex items-center gap-1 text-yellow-500">
-              <Star className="w-4 h-4 fill-current" />
+            <div className="flex items-center gap-1 text-yellow-500 font-semibold">
+              <Star className="w-3.5 h-3.5 fill-current" />
               <span>{movie.rating.toFixed(1)}</span>
             </div>
           )}
         </div>
+
+        {movie.overview && (
+          <p className="text-xs text-gray-400 mt-2 line-clamp-3 leading-relaxed" title={movie.overview}>
+            {movie.overview}
+          </p>
+        )}
+
         {movie.genres && movie.genres.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
+          <div className="flex flex-wrap gap-1 mt-3">
             {movie.genres.slice(0, 2).map((genre) => (
               <span
                 key={genre}
-                className="text-xs px-2 py-0.5 bg-dark-700 rounded-full text-gray-400"
+                className="text-[10px] px-2 py-0.5 bg-dark-700 rounded-full text-gray-400"
               >
                 {genre}
               </span>

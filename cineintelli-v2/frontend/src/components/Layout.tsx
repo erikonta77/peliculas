@@ -1,10 +1,21 @@
+import { useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import { Film, Home, Sparkles, User, LogOut } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
 
 export default function Layout() {
   const location = useLocation()
-  const { user, logout } = useAuthStore()
+  const { user, setAuth, logout } = useAuthStore()
+
+  useEffect(() => {
+    if (!user) {
+      setAuth('demo-token', {
+        id: 'demo-user',
+        email: 'demo@cineintelli.com',
+        full_name: 'Usuario Demo'
+      })
+    }
+  }, [user, setAuth])
 
   const isActive = (path: string) => location.pathname === path
 

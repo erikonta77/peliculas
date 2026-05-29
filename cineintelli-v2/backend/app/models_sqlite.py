@@ -97,6 +97,7 @@ class Movie(Base):
             "poster_url": self.poster_url,
             "runtime": self.runtime,
             "language": self.language,
+            "tagline": self.tagline,
         }
 
 
