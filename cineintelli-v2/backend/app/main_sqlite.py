@@ -86,5 +86,24 @@ else:
             "health": "/health"
         }
 
+# Configure explicit MIME types for Windows compatibility
+import mimetypes
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+
 # Init DB on startup
 init_db()
+
+# Auto-seed database if empty
+from app.core.database_sqlite import SessionLocal
+from app.models_sqlite import Movie
+from app.api.movies_sqlite import seed_demo_movies
+
+db = SessionLocal()
+try:
+    if db.query(Movie).count() == 0:
+        print("[main_sqlite] Database is empty. Seeding demo movies...")
+        seed_demo_movies(db)
+        print("[main_sqlite] Seed completed.")
+finally:
+    db.close()
