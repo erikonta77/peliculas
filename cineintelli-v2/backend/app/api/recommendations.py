@@ -12,8 +12,8 @@ from app.api.auth import get_current_active_user
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.movie import Movie
-from app.models.user import User, UserProfile
+from app.models_sqlite import Movie
+from app.models_sqlite import User, UserProfile
 from app.services.cache import CacheService
 from app.services.recommender import MovieRecommender
 

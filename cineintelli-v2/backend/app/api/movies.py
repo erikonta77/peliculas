@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models.movie import Movie
+from app.models_sqlite import Movie
 from app.services.tmdb import TMDBService
 
 router = APIRouter()
