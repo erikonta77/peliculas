@@ -13,9 +13,11 @@ from sqlalchemy.orm import Session
 from app.core.database_sqlite import get_db
 from app.models_sqlite import User
 
-SECRET_KEY = "cineintelli-secret-key-change-in-production-2024"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
+from app.core.config import settings
+
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -77,6 +79,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
 @router.post("/register")
 def register(email: str, password: str, full_name: Optional[str] = None, db: Session = Depends(get_db)):
+    # Validar contraseña (mínimo 8 caracteres y al menos un número)
+    if len(password) < 8 or not any(char.isdigit() for char in password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña debe tener al menos 8 caracteres y contener al menos un número"
+        )
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ya registrado")
     user = User(email=email, hashed_password=get_password_hash(password), full_name=full_name)

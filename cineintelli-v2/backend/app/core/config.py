@@ -30,14 +30,14 @@ class Settings(BaseSettings):
     # =============================================================================
     # SEGURIDAD
     # =============================================================================
-    SECRET_KEY: str
+    SECRET_KEY: str = "cineintelli-secret-key-change-in-production-2024"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 días
 
     # =============================================================================
     # BASE DE DATOS
     # =============================================================================
-    DATABASE_URL: str
+    DATABASE_URL: str = "postgresql+asyncpg://cineintelli:password@localhost:5432/cineintelli"
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
 

@@ -15,7 +15,7 @@ from app.api import health_sqlite as health
 from app.api import auth_sqlite as auth
 from app.api import users_sqlite as users
 from app.api import movies_sqlite as movies
-from app.api import recommendations_sqlite as recommendations
+from app.api import recommendations
 from app.core.database_sqlite import init_db
 
 app = FastAPI(

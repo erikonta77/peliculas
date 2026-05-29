@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models_sqlite import User
+from app.models.user import User
 
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -110,6 +110,12 @@ async def register(
     db: AsyncSession = Depends(get_db)
 ):
     """Registro de nuevo usuario."""
+    # Validar contraseña (mínimo 8 caracteres y al menos un número)
+    if len(password) < 8 or not any(char.isdigit() for char in password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña debe tener al menos 8 caracteres y contener al menos un número"
+        )
     # Verificar si existe
     result = await db.execute(select(User).where(User.email == email))
     if result.scalar_one_or_none():

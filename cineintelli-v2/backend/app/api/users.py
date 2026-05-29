@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.auth import get_current_active_user
 from app.core.database import get_db
 from app.core.logging import logger
-from app.models_sqlite import User, UserProfile
+from app.models.user import User, UserProfile
 
 router = APIRouter()
 
