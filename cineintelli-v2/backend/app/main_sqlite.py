@@ -6,10 +6,10 @@ Ideal para despliegue rápido con TryCloudflare.
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api import health_sqlite as health
 from app.api import auth_sqlite as auth
@@ -45,8 +45,36 @@ app.include_router(recommendations.router, prefix="/api/v1/recommendations", tag
 
 # Static frontend
 static_path = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+index_path = os.path.join(static_path, "index.html")
+
 if os.path.exists(static_path):
-    app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
+    # Servir archivos estáticos (JS, CSS, imágenes) directamente
+    @app.get("/assets/{file_path:path}")
+    def serve_assets(file_path: str):
+        asset_file = os.path.join(static_path, "assets", file_path)
+        if os.path.exists(asset_file):
+            return FileResponse(asset_file)
+        return {"detail": "Not found"}
+
+    @app.get("/vite.svg")
+    def serve_vite_svg():
+        svg_file = os.path.join(static_path, "vite.svg")
+        if os.path.exists(svg_file):
+            return FileResponse(svg_file)
+        return {"detail": "Not found"}
+
+    # Catch-all para rutas del frontend SPA (React Router)
+    # Debe ir DESPUÉS de todas las rutas de API
+    @app.get("/{full_path:path}")
+    def serve_spa(full_path: str):
+        # Si existe un archivo estático, servirlo
+        requested_file = os.path.join(static_path, full_path)
+        if os.path.exists(requested_file) and os.path.isfile(requested_file):
+            return FileResponse(requested_file)
+        # Si no, servir index.html (SPA routing)
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        return {"detail": "Not found"}
 else:
     @app.get("/")
     def root():
